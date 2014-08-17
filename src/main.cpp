@@ -144,7 +144,7 @@ void GenMesh(float w, float h, float tilesX, float tilesY) {
 
 void getMeshFromBitmap() {
 	using namespace std;
-	bitmap_image image("surface1.bmp");
+	bitmap_image image("surfacegs.bmp");
 
 	if (!image) {
 		cout << "Error - Failed to open: input.bmp\n";
@@ -166,7 +166,7 @@ void getMeshFromBitmap() {
 	for (unsigned int y = 0; y < height; ++y) {
 		for (unsigned int x = 0; x < width; ++x) {
 			image.get_pixel(x, y, red, green, blue);
-			float avarage = float(red + green + blue) / float(30);
+			float avarage = float(red) / float(2);
 			vec3 v;
 			v.x = float(x);
 			v.z = float(y);
@@ -190,8 +190,56 @@ void getMeshFromBitmap() {
 	}
 }
 
+void getMeshFromBitmap1(char* filename) {
+	int i;
+	FILE* f = fopen(filename, "rb");
+	unsigned char info[54];
+	fread(info, sizeof(unsigned char), 54, f); // read the 54-byte header
+
+	// extract image height and width from header
+	const unsigned int width = *(int*) &info[18];
+	const unsigned int height = *(int*) &info[22];
+	int size = 3 * width * height;
+	unsigned char* data = new unsigned char[size]; // allocate 3 bytes per pixel
+	fread(data, sizeof(unsigned char), size, f); // read the rest of the data at once
+	fclose(f);
+
+	meshHeight = height;
+	meshWidth = width;
+	vec3 zero;
+	zero.x = 0.0f;
+	zero.y = 0.0f;
+	zero.z = 0.0f;
+
+	for (i = 0; i < size; i += 3) {
+		vec3 v;
+		int pixel = i / 3;
+		v.x = pixel % width;
+		v.z = pixel / width;
+		v.y = float(data[i] + data[i + 1] + data[i + 2]) / float(4);
+		surface.vertices.push_back(v);
+		surface.normals.push_back(zero);
+	}
+
+	unsigned long pos = 0;
+	for (unsigned int y = 0; y < (height - 1); ++y) {
+		for (unsigned int x = 0; x < (width - 1); ++x) {
+			surface.indices.push_back(pos);
+			surface.indices.push_back(pos + width);
+			surface.indices.push_back(pos + width + 1);
+			surface.indices.push_back(pos);
+			surface.indices.push_back(pos + width + 1);
+			surface.indices.push_back(pos + 1);
+			++pos;
+		}
+		++pos;
+	}
+
+}
+
 void InitScene() {
 //	GenMesh(30.0f, 30.0f, 50.0f, 50.0f);
+//	getMeshFromBitmap1("surfacegs.bmp");
 	getMeshFromBitmap();
 	CalcMeshNormals(surface);
 }
@@ -208,7 +256,9 @@ void main_loop_function() {
 	glRotatef(theta, 0.0f, 1.0f, 0.0f);
 
 //	surface.vertices[vertIndex].y;
-	glTranslatef(x, - 40, y);
+	int vertexPositio = -(int(x) + int(y) * meshWidth);
+	vec3 vertex = surface.vertices[vertexPositio];
+	glTranslatef(x, -5 - vertex.y, y);
 
 	vec4 pos;
 	pos.x = 0.0f;
@@ -216,16 +266,6 @@ void main_loop_function() {
 	pos.z = -99.0f;
 	pos.w = 0.0f;
 	glLightfv(GL_LIGHT0, GL_POSITION, &pos.x);
-
-	//glPolygonMode(GL_FRONT, GL_LINE);
-	/* //Depricated
-	 glBegin(GL_TRIANGLES);
-	 for (size_t i = 0; i < surface.indices.size(); ++i) {
-	 glNormal3fv(&surface.normals[ surface.indices[i] ].x);
-	 glVertex3fv(&surface.vertices[ surface.indices[i] ].x);
-	 }
-	 glEnd();
-	 */
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glEnableClientState(GL_NORMAL_ARRAY);
 	glNormalPointer(GL_FLOAT, 0, &surface.normals.front());
@@ -241,9 +281,8 @@ void main_loop_function() {
 
 void GL_Setup(int width, int height) {
 	InitScene();
-	float green_mat[] = {0.2, 0.1, 0.1, 0.0};
-	float green_mat_d[] = {1.0,1.0f, 0.5,0.0};
-	float shines = 50;
+	float green_mat[] = { 0.2, 0.1, 0.1, 0.0 };
+	float green_mat_d[] = { 1.0, 1.0f, 0.5, 0.0 };
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
@@ -253,7 +292,7 @@ void GL_Setup(int width, int height) {
 	glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, green_mat);
 	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, green_mat_d);
 	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, green_mat_d);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, &shines);
+//	glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, &shines);
 	glClearColor(0.0f, 0.7f, 0.7f, 0.0f);
 	glShadeModel(GLU_SMOOTH);
 	glMatrixMode(GL_PROJECTION);
@@ -262,7 +301,7 @@ void GL_Setup(int width, int height) {
 	glMatrixMode(GL_MODELVIEW);
 }
 
-int step = 5;
+int step = 1;
 
 void onKeyEvent(unsigned char key, int xMouse, int yMouse) {
 	switch (key) {
